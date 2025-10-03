@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 300px;
+            height: 300px;
+            margin: 20px auto;
+        }
+        .cell {
+            background: #f0f0f0;
+            border: none;
+            border-radius: 10px;
+            font-size: 2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .cell:hover {
+            background: #e0e0e0;
+            transform: translateY(-2px);
+        }
+        .cell.x { color: #e74c3c; }
+        .cell.o { color: #3498db; }
+        .status {
+            margin: 20px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 10px 20px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-reset {
+            background: #f39c12;
+            color: white;
+        }
+        .btn-new {
+            background: #27ae60;
+            color: white;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tic Tac Toe</h1>
+        <div class="status" id="status">Loading...</div>
+        <div class="board" id="board"></div>
+        <div class="controls">
+            <button class="btn btn-reset" onclick="resetGame()">Reset Game</button>
+            <button class="btn btn-new" onclick="newGame()">New Game</button>
+        </div>
+    </div>
+
+    <script>
+        let gameId = null;
+        let gameState = null;
+
+        async function newGame() {
+            try {
+                const response = await fetch('http://localhost:5000/api/game/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                gameId = data.game_id;
+                gameState = data.state;
+                updateUI();
+            } catch (error) {
+                console.error('Error creating new game:', error);
+                document.getElementById('status').textContent = 'Error creating game';
+            }
+        }
+
+        async function makeMove(row, col) {
+            if (!gameId || gameState.game_over) return;
+            
+            try {
+                const response = await fetch(`http://localhost:5000/api/game/${gameId}/move`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ row, col })
+                });
+                
+                if (response.ok) {
+                    gameState = await response.json();
+                    updateUI();
+                } else {
+                    const error = await response.json();
+                    console.error('Move error:', error);
+                }
+            } catch (error) {
+                console.error('Error making move:', error);
+            }
+        }
+
+        async function resetGame() {
+            if (!gameId) return;
+            
+            try {
+                const response = await fetch(`http://localhost:5000/api/game/${gameId}/reset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                gameState = await response.json();
+                updateUI();
+            } catch (error) {
+                console.error('Error resetting game:', error);
+            }
+        }
+
+        function updateUI() {
+            const board = document.getElementById('board');
+            const status = document.getElementById('status');
+            
+            // Clear board
+            board.innerHTML = '';
+            
+            // Create cells
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    const cell = document.createElement('button');
+                    cell.className = 'cell';
+                    cell.textContent = gameState.board[row][col];
+                    
+                    if (gameState.board[row][col]) {
+                        cell.classList.add(gameState.board[row][col].toLowerCase());
+                    }
+                    
+                    if (!gameState.game_over && !gameState.board[row][col]) {
+                        cell.onclick = () => makeMove(row, col);
+                    } else {
+                        cell.disabled = true;
+                    }
+                    
+                    board.appendChild(cell);
+                }
+            }
+            
+            // Update status
+            if (gameState.game_over) {
+                if (gameState.winner === 'tie') {
+                    status.textContent = "It's a tie!";
+                } else {
+                    status.textContent = `Player ${gameState.winner} wins!`;
+                }
+            } else {
+                status.textContent = `Current player: ${gameState.current_player}`;
+            }
+        }
+
+        // Start the game
+        newGame();
+    </script>
+</body>
+</html>
